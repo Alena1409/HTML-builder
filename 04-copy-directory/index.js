@@ -1,44 +1,25 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
 const filesPath = path.join(__dirname, 'files');
 const filesCopyPath = path.join(__dirname, 'files-copy');
 
-fs.mkdir(filesCopyPath, { recursive: true }, (err) => {
-  if (err) {
-    console.log('ошибкасоздания папки');
-  }
+async function myFunction() {
+  try {
+    //удалени-создание папки files-copy
+    await fs.rm(filesCopyPath, { recursive: true, force: true });
+    await fs.mkdir(filesCopyPath, { recursive: true });
 
-  fs.readdir(filesCopyPath, (err, copyFiles) => {
-    if (err) {
-      console.error('ошибка:', err);
-      return;
-    } else {
-      copyFiles.forEach((file) => {
-        const filePath = path.join(filesCopyPath, file);
-        fs.unlink(filePath, (err) => {
-          if (err) {
-            console.error(`Ошибка удаления файла ${file}:`, err);
-          }
-        });
-      });
+    //чтение папки для копирования и копирование файлов
+    const files = await fs.readdir(filesPath);
+    for (const file of files) {
+      const oldFile = path.join(filesPath, file);
+      const newFile = path.join(filesCopyPath, file);
+      await fs.copyFile(oldFile, newFile);
     }
+  } catch (err) {
+    console.log('error: ', err);
+  }
+}
 
-    fs.readdir(filesPath, { withFileTypes: true }, (err, files) => {
-      if (err) {
-        console.log(err);
-        return;
-      } else {
-        files.forEach((item) => {
-          const oldFile = path.join(filesPath, item.name);
-          const newFile = path.join(filesCopyPath, item.name);
-          fs.copyFile(oldFile, newFile, (err) => {
-            if (err) {
-              console.log('ошибка копирования');
-            }
-          });
-        });
-      }
-    });
-  });
-});
+myFunction();
