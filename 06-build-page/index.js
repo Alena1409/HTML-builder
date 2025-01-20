@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
 const projectPath = path.join(__dirname, 'project-dist');
@@ -8,139 +8,82 @@ const stylesPath = path.join(__dirname, 'styles');
 const assetsProjectPath = path.join(projectPath, 'assets');
 const indexProjectPath = path.join(projectPath, 'index.html');
 const styleProjectPath = path.join(projectPath, 'style.css');
-const componentsPath = path.join(__dirname, 'components');
 
-fs.mkdir(projectPath, { recursive: true }, (err) => {
-  if (err) {
-    console.log('ошибка создания папки project-dist: ', err);
+async function myFunction() {
+  try {
+    // созд-е project-dist
+    await fs.mkdir(projectPath, { recursive: true });
+
+    // созд-е assets
+    await fs.rm(assetsProjectPath, { recursive: true, force: true });
+    await fs.mkdir(assetsProjectPath, { recursive: true });
+
+    // копир-ие папок из assets
+    const folders = await fs.readdir(assetsPath);
+    for (const folder of folders) {
+      const oldFolder = path.join(assetsPath, folder);
+      const newFolder = path.join(assetsProjectPath, folder);
+
+      await fs.mkdir(newFolder, { recursive: true });
+
+      const files = await fs.readdir(oldFolder);
+      for (const file of files) {
+        const oldFile = path.join(oldFolder, file);
+        const newFile = path.join(newFolder, file);
+        await fs.copyFile(oldFile, newFile);
+      }
+    }
+
+    //созд-е файла styles
+    let allStyles = [];
+    const filesOfStyle = await fs.readdir(stylesPath, { withFileTypes: true });
+
+    for (const fileStyle of filesOfStyle) {
+      if (path.extname(fileStyle.name) === '.css' && fileStyle.isFile()) {
+        const content = await fs.readFile(
+          path.join(stylesPath, fileStyle.name),
+          'utf-8',
+        );
+        allStyles.push(content);
+      }
+    }
+
+    await fs.writeFile(styleProjectPath, allStyles.join('\n'));
+
+    //созд-е index.html
+    let templateContent = await fs.readFile(templatePath, 'utf-8');
+    // созд-ие данных по тегам
+    const tags = findTags(templateContent);
+
+    // замена тега на комп-нт
+    for (const tag of tags) {
+      const componentContent = await readComponents(tag);
+      const templateTag = `{{${tag}}}`;
+      templateContent = templateContent.replace(templateTag, componentContent);
+    }
+
+    // запись в index.html
+    await fs.writeFile(indexProjectPath, templateContent);
+  } catch (err) {
+    console.log('error:', err);
   }
-  fs.rm(assetsProjectPath, { recursive: true, force: true }, (err) => {
-    if (err) {
-      console.log('error: ', err);
-    }
-    fs.mkdir(assetsProjectPath, { recursive: true }, (err) => {
-      if (err) {
-        console.log('error: ', err);
-      }
-    });
-    fs.readdir(assetsPath, (err, foldersInAssets) => {
-      if (err) {
-        console.log('error: ', err);
-      } else {
-        foldersInAssets.forEach((file) => {
-          const assetsFolderCopyPath = path.join(assetsProjectPath, file);
-          fs.mkdir(assetsFolderCopyPath, { recursive: true }, (err) => {
-            if (err) {
-              console.log('error: ', err);
-            }
-          });
-          const assetsFolderPath = path.join(assetsPath, file);
-          fs.readdir(assetsFolderPath, (err, element) => {
-            if (err) {
-              console.log('error: ', err);
-            } else {
-              element.forEach((a) => {
-                const oldFile = path.join(assetsFolderPath, a);
-                const newFile = path.join(assetsFolderCopyPath, a);
-                fs.copyFile(oldFile, newFile, (err) => {
-                  if (err) {
-                    console.log('ошибка копирования: ', err);
-                  }
-                });
-              });
-            }
-          });
-        });
-      }
-    });
-  });
+}
 
-  let allStyles = [];
+// чтение файлов в Components по имени
+async function readComponents(name) {
+  const componentPath = path.join(__dirname, 'components', `${name}.html`);
+  return fs.readFile(componentPath, 'utf-8');
+}
 
-  fs.readdir(stylesPath, { withFileTypes: true }, (err, files) => {
-    if (err) {
-      console.log('ошибка чтения файла styles: ', err);
-    } else {
-      files.forEach((item) => {
-        if (path.extname(item.name) === '.css') {
-          const itemPath = path.join(stylesPath, item.name);
-          fs.readFile(itemPath, 'utf-8', (err, data) => {
-            if (err) {
-              console.log('error: ', err);
-            } else {
-              allStyles.push(data);
+// нахождение тегов
+function findTags(templateContent) {
+  const reg = /{{(\w+)}}/g;
+  let tags = [];
+  let match;
+  while ((match = reg.exec(templateContent)) !== null) {
+    tags.push(match[1]);
+  }
+  return [...new Set(tags)];
+}
 
-              fs.writeFile(styleProjectPath, allStyles.join(''), (err) => {
-                if (err) {
-                  console.log('error: ', err);
-                }
-              });
-            }
-          });
-        }
-      });
-    }
-  });
-
-  let text = [];
-  let articlesFile = [];
-  let footerFile = [];
-  let headerFile = [];
-
-  fs.readdir(componentsPath, { withFileTypes: true }, (err, files) => {
-    if (err) {
-      console.log('ошибка чтения components: ', err);
-    } else {
-      files.forEach((item) => {
-        if (path.extname(item.name) === '.html') {
-          const itemPath = path.join(componentsPath, item.name);
-          if (item.name === 'articles.html') {
-            fs.readFile(itemPath, 'utf-8', (err, data) => {
-              if (err) {
-                console.log('error: ', err);
-              } else {
-                articlesFile.push(data);
-              }
-            });
-          }
-          if (item.name === 'footer.html') {
-            fs.readFile(itemPath, 'utf-8', (err, data) => {
-              if (err) {
-                console.log('error: ', err);
-              } else {
-                footerFile.push(data);
-              }
-            });
-          }
-          if (item.name === 'header.html') {
-            fs.readFile(itemPath, 'utf-8', (err, data) => {
-              if (err) {
-                console.log('error: ', err);
-              } else {
-                headerFile.push(data);
-              }
-            });
-          }
-        }
-      });
-      fs.readFile(templatePath, 'utf-8', (err, data) => {
-        if (err) {
-          console.log('error: ', err);
-        } else {
-          let result = data;
-          result = result.replace('{{header}}', headerFile.join(''));
-          result = result.replace('{{articles}}', articlesFile.join(''));
-          result = result.replace('{{footer}}', footerFile.join(''));
-
-          text.push(result);
-
-          fs.writeFile(indexProjectPath, text.join(''), (err) => {
-            if (err) {
-              console.log('ошибка записи в индекс: ', err);
-            }
-          });
-        }
-      });
-    }
-  });
-});
+myFunction();
